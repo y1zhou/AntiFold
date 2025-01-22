@@ -2,8 +2,8 @@ import glob
 import logging
 import os
 import sys
-import warnings
 import urllib.request
+import warnings
 from pathlib import Path
 
 ROOT_PATH = Path(os.path.dirname(__file__)).parent
@@ -136,14 +136,19 @@ def load_model(checkpoint_path: str = ""):
     """Load raw/FT IF1 model"""
 
     # Check that AntiFold weights are downloaded
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    model_path = f"{root_dir}/models/model.pt"
+    if checkpoint_path:
+        model_path = checkpoint_path
+    else:
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        os.makedirs(f"{root_dir}/models", exist_ok=True)
+        model_path = f"{root_dir}/models/model.pt"
 
     if not os.path.exists(model_path):
         log.warning(
             f"Downloading AntiFold model weights from https://opig.stats.ox.ac.uk/data/downloads/AntiFold/models/model.pt to {model_path}"
         )
         url = "https://opig.stats.ox.ac.uk/data/downloads/AntiFold/models/model.pt"
+        urllib.request.urlretrieve(url, model_path)
         filename = model_path
 
         os.makedirs(f"{root_dir}/models", exist_ok=True)
@@ -156,9 +161,7 @@ def load_model(checkpoint_path: str = ""):
 
     # Download IF1 weights
     if checkpoint_path == "ESM-IF1":
-        log.info(
-            f"NOTE: Loading ESM-IF1 weights instead of fine-tuned AntiFold weights"
-        )
+        log.info("NOTE: Loading ESM-IF1 weights instead of fine-tuned AntiFold weights")
         # Suppress regression weights warning - not needed
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -236,7 +239,8 @@ def get_dataset_dataloader(
 
     # Load PDB coordinates
     dataset = InverseData(
-        gaussian_noise_flag=False, custom_chain_mode=custom_chain_mode,
+        gaussian_noise_flag=False,
+        custom_chain_mode=custom_chain_mode,
     )
     dataset.populate(pdbs_csv_or_dataframe, pdb_dir)
 
@@ -275,7 +279,7 @@ def dataset_dataloader_to_predictions_list(
             start_index + batch_size, len(dataset)
         )  # Adjust for the last batch
         log.info(
-            f"Predicting batch {bi+1}/{len(dataloader)}: PDBs {start_index+1}-{end_index} out of {len(dataset)} total"
+            f"Predicting batch {bi + 1}/{len(dataloader)}: PDBs {start_index + 1}-{end_index} out of {len(dataset)} total"
         )  # -1 because the end_index is exclusive
 
         # Test dataloader
@@ -357,7 +361,10 @@ def predictions_list_to_df_logits_list(all_seqprobs_list, dataset, dataloader):
 
         # Logits to DataFrame
         alphabet = antifold.esm.data.Alphabet.from_architecture("invariant_gvp")
-        df_logits = pd.DataFrame(data=seq_probs, columns=alphabet.all_toks[4:25],)
+        df_logits = pd.DataFrame(
+            data=seq_probs,
+            columns=alphabet.all_toks[4:25],
+        )
 
         # Limit to 20x amino-acids probs
         _alphabet = list("ACDEFGHIKLMNPQRSTVWY")
@@ -365,7 +372,7 @@ def predictions_list_to_df_logits_list(all_seqprobs_list, dataset, dataloader):
 
         # Add PDB info
         positions = pdb_posins_to_pos(pd.Series(pdb_posins))
-        top_res = np.array((_alphabet))[df_logits[_alphabet].values.argmax(axis=1)]
+        top_res = np.array(_alphabet)[df_logits[_alphabet].values.argmax(axis=1)]
         perplexity = calc_pos_perplexity(df_logits)
 
         # Add to DataFrame
@@ -551,12 +558,12 @@ def sample_new_sequences_CDR_HL(
     # Mismatches vs predicted (CDR only)
     pred_seq = get_df_seq_pred(df)
     mismatch_idxs_pred_cdr = np.where(
-        (sampled_seq[region_mask] != pred_seq[region_mask])
+        sampled_seq[region_mask] != pred_seq[region_mask]
     )[0]
 
     # Mismatches vs original (all)
     orig_seq = get_df_seq(df)
-    mismatch_idxs_orig = np.where((sampled_seq != orig_seq))[0]
+    mismatch_idxs_orig = np.where(sampled_seq != orig_seq)[0]
 
     # Limit mutations (backmutate) to as many expected from temperature sampling
     if limit_expected_variation:
@@ -628,7 +635,13 @@ def get_temp_probs(df, t=0.20):
 
 def get_dfs_HL(df):
     """Split df into heavy and light chains"""
-    Hchain, Lchain = df["pdb_chain"].unique()[:2] # Assume heavy, light
+    df_chains = df["pdb_chain"].unique()
+    if len(df_chains) == 2:
+        Hchain, Lchain = df_chains
+    else:
+        Hchain = df_chains[0]
+        Lchain = ""
+    # Hchain, Lchain = df["pdb_chain"].unique()
     return df[df["pdb_chain"] == Hchain], df[df["pdb_chain"] == Lchain]
 
 
@@ -663,7 +676,7 @@ def sample_from_df_logits(
     H_orig, L_orig = get_df_seqs_HL(df_logits)
 
     # Only sampling from heavy, light chains
-    df_logits_HL = df_logits.iloc[:len(H_orig) + len(L_orig), :]
+    df_logits_HL = df_logits.iloc[: len(H_orig) + len(L_orig), :]
     df_logits_HL.name = df_logits.name
 
     # Stats
@@ -713,8 +726,8 @@ def sample_from_df_logits(
             )
 
             # Save to FASTA dict
-            _id = f"{df_logits_HL.name}__{n+1}"
-            desc = f"T={t:.2f}, sample={n+1}, score={score_sampled:.4f}, global_score={global_score:.4f}, seq_recovery={seq_recovery:.4f}, mutations={n_mut}"
+            _id = f"{df_logits_HL.name}__{n + 1}"
+            desc = f"T={t:.2f}, sample={n + 1}, score={score_sampled:.4f}, global_score={global_score:.4f}, seq_recovery={seq_recovery:.4f}, mutations={n_mut}"
             seq_mut = "".join(H_mut) + "/" + "".join(L_mut)
             fasta_dict[_id] = SeqIO.SeqRecord(
                 Seq(seq_mut), id="", name="", description=desc
