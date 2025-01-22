@@ -80,6 +80,17 @@ python antifold/main.py \
     --esm_if1_mode
 ```
 
+#### Run AntiFold (inverse-folding logits, local inference server)
+
+Make sure you have [LitServe](https://github.com/Lightning-AI/LitServe/) installed in your Python environment.
+If the server needs authentication, [view the docs](https://lightning.ai/docs/litserve/features/authentication) for setting up a key.
+
+```python
+python antifold/api.py
+```
+
+See [client.py](client.py) for an toy script to query the API.
+
 ## Jupyter notebook
 Notebook: <a href="https://github.com/oxpig/AntiFold/blob/master/notebook.ipynb">notebook.ipynb</a>
 
