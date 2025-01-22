@@ -149,10 +149,6 @@ def load_model(checkpoint_path: str = ""):
         )
         url = "https://opig.stats.ox.ac.uk/data/downloads/AntiFold/models/model.pt"
         urllib.request.urlretrieve(url, model_path)
-        filename = model_path
-
-        os.makedirs(f"{root_dir}/models", exist_ok=True)
-        urllib.request.urlretrieve(url, filename)
 
     if not os.path.exists(model_path) and not checkpoint_path == "ESM-IF1":
         raise Exception(
