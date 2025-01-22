@@ -263,15 +263,15 @@ def check_valid_input(args):
 
     # Check that AntiFold weights are downloaded
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if not os.path.exists(f"{root_dir}/models/model.pt"):
+    if not args.model_path:
+        os.makedirs(f"{root_dir}/models", exist_ok=True)
+        args.model_path = f"{root_dir}/models/model.pt"
+    if not os.path.exists(args.model_path):
         log.warning(
-            f"Downloading AntiFold model weights from https://opig.stats.ox.ac.uk/data/downloads/AntiFold/models/model.pt to {model_path}"
+            f"Downloading AntiFold model weights from https://opig.stats.ox.ac.uk/data/downloads/AntiFold/models/model.pt to {args.model_path}"
         )
         url = "https://opig.stats.ox.ac.uk/data/downloads/AntiFold/models/model.pt"
-        filename = "models/model.pt"
-
-        os.makedirs(f"{root_dir}/models")
-        urllib.request.urlretrieve(url, filename)
+        urllib.request.urlretrieve(url, args.model_path)
 
     # Option 1: PDB file, check heavy and light chain
     if args.pdb_file:
@@ -431,7 +431,7 @@ def main(args):
 
     # Load AntiFold or ESM-IF1 model
     # Infer model from file path
-    model = load_model()
+    model = load_model(args.model_path)
 
     # Get dict with PDBs, sampled sequences and logits / log_odds DataFrame
     pdb_output_dict = sample_pdbs(

@@ -2,8 +2,8 @@ import glob
 import logging
 import os
 import sys
-import warnings
 import urllib.request
+import warnings
 from pathlib import Path
 
 ROOT_PATH = Path(os.path.dirname(__file__)).parent
@@ -136,18 +136,19 @@ def load_model(checkpoint_path: str = ""):
     """Load raw/FT IF1 model"""
 
     # Check that AntiFold weights are downloaded
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    model_path = f"{root_dir}/models/model.pt"
+    if checkpoint_path:
+        model_path = checkpoint_path
+    else:
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        os.makedirs(f"{root_dir}/models", exist_ok=True)
+        model_path = f"{root_dir}/models/model.pt"
 
     if not os.path.exists(model_path):
         log.warning(
             f"Downloading AntiFold model weights from https://opig.stats.ox.ac.uk/data/downloads/AntiFold/models/model.pt to {model_path}"
         )
         url = "https://opig.stats.ox.ac.uk/data/downloads/AntiFold/models/model.pt"
-        filename = model_path
-
-        os.makedirs(f"{root_dir}/models")
-        urllib.request.urlretrieve(url, filename)
+        urllib.request.urlretrieve(url, model_path)
 
     if not os.path.exists(model_path) and not checkpoint_path == "ESM-IF1":
         raise Exception(
@@ -156,9 +157,7 @@ def load_model(checkpoint_path: str = ""):
 
     # Download IF1 weights
     if checkpoint_path == "ESM-IF1":
-        log.info(
-            f"NOTE: Loading ESM-IF1 weights instead of fine-tuned AntiFold weights"
-        )
+        log.info("NOTE: Loading ESM-IF1 weights instead of fine-tuned AntiFold weights")
         # Suppress regression weights warning - not needed
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -236,7 +235,8 @@ def get_dataset_dataloader(
 
     # Load PDB coordinates
     dataset = InverseData(
-        gaussian_noise_flag=False, custom_chain_mode=custom_chain_mode,
+        gaussian_noise_flag=False,
+        custom_chain_mode=custom_chain_mode,
     )
     dataset.populate(pdbs_csv_or_dataframe, pdb_dir)
 
@@ -357,7 +357,10 @@ def predictions_list_to_df_logits_list(all_seqprobs_list, dataset, dataloader):
 
         # Logits to DataFrame
         alphabet = antifold.esm.data.Alphabet.from_architecture("invariant_gvp")
-        df_logits = pd.DataFrame(data=seq_probs, columns=alphabet.all_toks[4:25],)
+        df_logits = pd.DataFrame(
+            data=seq_probs,
+            columns=alphabet.all_toks[4:25],
+        )
 
         # Limit to 20x amino-acids probs
         _alphabet = list("ACDEFGHIKLMNPQRSTVWY")
@@ -628,7 +631,13 @@ def get_temp_probs(df, t=0.20):
 
 def get_dfs_HL(df):
     """Split df into heavy and light chains"""
-    Hchain, Lchain = df["pdb_chain"].unique()
+    df_chains = df["pdb_chain"].unique()
+    if len(df_chains) == 2:
+        Hchain, Lchain = df_chains
+    else:
+        Hchain = df_chains[0]
+        Lchain = ""
+    # Hchain, Lchain = df["pdb_chain"].unique()
     return df[df["pdb_chain"] == Hchain], df[df["pdb_chain"] == Lchain]
 
 
